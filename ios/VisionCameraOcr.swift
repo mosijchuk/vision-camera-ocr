@@ -1,135 +1,93 @@
-import Vision
-import AVFoundation
+import Foundation
+import VisionCamera
 import MLKitVision
 import MLKitTextRecognition
 
 @objc(OCRFrameProcessorPlugin)
-public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
+public class OCRFrameProcessorPlugin: FrameProcessorPlugin {
 
     private static var textRecognizer = TextRecognizer.textRecognizer(options: TextRecognizerOptions())
 
-    private static func getBlockArray(_ blocks: [TextBlock]) -> [[String: Any]] {
+    public override init(proxy: VisionCameraProxyHolder, options: [AnyHashable : Any]! = [:]) {
+        super.init(proxy: proxy, options: options)
+    }
 
-        var blockArray: [[String: Any]] = []
+    public override func callback(_ frame: Frame, withArguments arguments: [AnyHashable : Any]?) -> Any {
 
-        for block in blocks {
-            blockArray.append([
+        guard let buffer = CMSampleBufferGetImageBuffer(frame.buffer) else {
+            return ["error": "Failed to get image buffer"]
+        }
+
+        let visionImage = VisionImage(buffer: frame.buffer)
+        visionImage.orientation = frame.orientation
+
+        do {
+            let result = try Self.textRecognizer.results(in: visionImage)
+
+            return [
+                "result": [
+                    "text": result.text,
+                    "blocks": getBlockArray(result.blocks)
+                ]
+            ]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
+    private func getBlockArray(_ blocks: [TextBlock]) -> [[String: Any]] {
+        return blocks.map { block in
+            [
                 "text": block.text,
                 "recognizedLanguages": getRecognizedLanguages(block.recognizedLanguages),
                 "cornerPoints": getCornerPoints(block.cornerPoints),
                 "frame": getFrame(block.frame),
-                "lines": getLineArray(block.lines),
-            ])
+                "lines": getLineArray(block.lines)
+            ]
         }
-
-        return blockArray
     }
 
-    private static func getLineArray(_ lines: [TextLine]) -> [[String: Any]] {
-
-        var lineArray: [[String: Any]] = []
-
-        for line in lines {
-            lineArray.append([
+    private func getLineArray(_ lines: [TextLine]) -> [[String: Any]] {
+        return lines.map { line in
+            [
                 "text": line.text,
                 "recognizedLanguages": getRecognizedLanguages(line.recognizedLanguages),
                 "cornerPoints": getCornerPoints(line.cornerPoints),
                 "frame": getFrame(line.frame),
-                "elements": getElementArray(line.elements),
-            ])
+                "elements": getElementArray(line.elements)
+            ]
         }
-
-        return lineArray
     }
 
-    private static func getElementArray(_ elements: [TextElement]) -> [[String: Any]] {
-
-        var elementArray: [[String: Any]] = []
-
-        for element in elements {
-            elementArray.append([
+    private func getElementArray(_ elements: [TextElement]) -> [[String: Any]] {
+        return elements.map { element in
+            [
                 "text": element.text,
                 "cornerPoints": getCornerPoints(element.cornerPoints),
-                "frame": getFrame(element.frame),
-            ])
-        }
-
-        return elementArray
-    }
-
-    private static func getRecognizedLanguages(_ languages: [TextRecognizedLanguage]) -> [String] {
-
-        var languageArray: [String] = []
-
-        for language in languages {
-            guard let code = language.languageCode else {
-                print("No language code exists")
-                break;
-            }
-            languageArray.append(code)
-        }
-
-        return languageArray
-    }
-
-    private static func getCornerPoints(_ cornerPoints: [NSValue]) -> [[String: CGFloat]] {
-
-        var cornerPointArray: [[String: CGFloat]] = []
-
-        for cornerPoint in cornerPoints {
-            guard let point = cornerPoint as? CGPoint else {
-                print("Failed to convert corner point to CGPoint")
-                break;
-            }
-            cornerPointArray.append([ "x": point.x, "y": point.y])
-        }
-
-        return cornerPointArray
-    }
-
-    private static func getFrame(_ frameRect: CGRect) -> [String: CGFloat] {
-
-        let offsetX = (frameRect.midX - ceil(frameRect.width)) / 2.0
-        let offsetY = (frameRect.midY - ceil(frameRect.height)) / 2.0
-
-        let x = frameRect.maxX + offsetX
-        let y = frameRect.minY + offsetY
-
-        return [
-          "x": frameRect.midX + (frameRect.midX - x),
-          "y": frameRect.midY + (y - frameRect.midY),
-          "width": frameRect.width,
-          "height": frameRect.height,
-          "boundingCenterX": frameRect.midX,
-          "boundingCenterY": frameRect.midY
-        ]
-    }
-
-    @objc
-    public static func callback(_ frame: Frame!, withArgs _: [Any]!) -> Any! {
-
-        guard (CMSampleBufferGetImageBuffer(frame.buffer) != nil) else {
-          print("Failed to get image buffer from sample buffer.")
-          return nil
-        }
-
-        let visionImage = VisionImage(buffer: frame.buffer)
-
-        visionImage.orientation = .up
-
-        var result: Text
-        do {
-          result = try textRecognizer.results(in: visionImage)
-        } catch let error {
-          print("Failed to recognize text with error: \(error.localizedDescription).")
-          return nil
-        }
-
-        return [
-            "result": [
-                "text": result.text,
-                "blocks": getBlockArray(result.blocks),
+                "frame": getFrame(element.frame)
             ]
+        }
+    }
+
+    private func getRecognizedLanguages(_ languages: [TextRecognizedLanguage]) -> [String] {
+        return languages.compactMap { $0.languageCode }
+    }
+
+    private func getCornerPoints(_ cornerPoints: [NSValue]) -> [[String: CGFloat]] {
+        return cornerPoints.compactMap { value in
+            let point = value.cgPointValue
+            return ["x": point.x, "y": point.y]
+        }
+    }
+
+    private func getFrame(_ frameRect: CGRect) -> [String: CGFloat] {
+        return [
+            "x": frameRect.origin.x,
+            "y": frameRect.origin.y,
+            "width": frameRect.width,
+            "height": frameRect.height,
+            "boundingCenterX": frameRect.midX,
+            "boundingCenterY": frameRect.midY
         ]
     }
 }
