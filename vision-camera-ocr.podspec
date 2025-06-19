@@ -10,11 +10,11 @@ Pod::Spec.new do |s|
   s.license      = package["license"]
   s.authors      = package["author"]
 
-  s.platforms    = { :ios => "11.0" }
+  s.platforms    = { :ios => "15.0" }
   s.source       = { :git => "https://github.com/aarongrider/vision-camera-ocr.git", :tag => "#{s.version}" }
 
   s.source_files = "ios/**/*.{h,m,mm,swift}"
 
   s.dependency "React-Core"
-  s.dependency "GoogleMLKit/TextRecognition", "2.2.0"
+  s.dependency "GoogleMLKit/TextRecognition", "7.0.0"
 end
