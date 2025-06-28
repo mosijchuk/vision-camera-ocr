@@ -1,5 +1,7 @@
 /* eslint-disable no-undef */
 import type { Frame } from 'react-native-vision-camera';
+import { VisionCameraProxy } from "react-native-vision-camera";
+import { useMemo } from "react";
 
 type BoundingFrame = {
   x: number;
@@ -42,12 +44,34 @@ export type OCRFrame = {
   result: Text;
 };
 
+type OCRPlugin = {
+  scanOCR: ( frame: Frame ) => OCRFrame
+}
+
 /**
  * Scans OCR.
  */
 
-export function scanOCR(frame: Frame): OCRFrame {
-  'worklet';
-  // @ts-ignore
-  return __scanOCR(frame);
+function createOcrPlugin(): OCRPlugin {
+  const plugin = VisionCameraProxy.initFrameProcessorPlugin( 'scanOCR', {} )
+
+  if ( !plugin ) {
+    throw new Error( 'Failed to load Frame Processor Plugin "scanOCR"!' )
+  }
+
+  return {
+    scanOCR: (
+      frame: Frame
+    ): OCRFrame => {
+      'worklet'
+      // @ts-ignore
+      return plugin.call( frame ) as OCRFrame
+    }
+  }
+}
+
+export function useOcrPlugin(): OCRPlugin {
+  return useMemo( () => (
+    createOcrPlugin()
+  ), [] )
 }
