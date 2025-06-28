@@ -22,5 +22,10 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "esnext"
-  }
+  },
+  "exclude": [
+    "example/**/*",
+    "node_modules",
+    "lib"
+  ]
 }
